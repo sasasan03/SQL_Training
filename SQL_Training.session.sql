@@ -1,89 +1,9 @@
--- テーブル作成
-CREATE TABLE Shops (
-    shop_id INT AUTO_INCREMENT PRIMARY KEY,
-    shop_name VARCHAR(20),
-    rating INT,
-    area VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE Reservations (
-    reservations_id INT AUTO_INCREMENT PRIMARY KEY,
-    shop_id INT,
-    reservations_name VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE Address (
-    name VARCHAR(20),
-    phone_number VARCHAR(30),
-    address VARCHAR(10),
-    sex VARCHAR(3),
-    age INT
-);
--- テーブルカラム修正
-ALTER TABLE Address
-MODIFY phone_number VARCHAR(30),
-    MODIFY age INT NOT NULL;
-SHOW TABLES;
--- レコード追加
-INSERT INTO Shops (shop_name, rating, area) VALUE ('サンプルショップ', 1, '和歌山');
-INSERT INTO Address (name, phone_number, address, sex, age) VALUE ('鈴木', '080-1111-2222', '東京', '男', 24),
-    ('鈴木', '080-1111-2222', '東京', '男', 24),
-    ('佐藤', '090-2222-3333', '大阪', '女', 28),
-    ('高橋', NULL, '名古屋', '男', 31),
-    ('田中', '080-4444-5555', '福岡', '女', 22),
-    ('伊藤', '090-5555-6666', '札幌', '男', 35),
-    ('渡辺', '070-6666-7777', '横浜', '女', 27),
-    ('山本', '080-7777-8888', '京都', '男', 29),
-    ('中村', '090-8888-9999', '神戸', '女', 26),
-    ('小林', NULL, '広島', '男', 33),
-    ('加藤', '080-1234-5678', '仙台', '女', 30);
--- テーブルの中身検索
-SELECT *
-FROM Shops;
-SELECT *
-FROM Reservations;
-SELECT *
-FROM Address;
--- JOIN
-SELECT shop_name
-FROM Shops S
-    INNER JOIN Reservations R ON S.shop_id = R.shop_id;
--- 絞り込み
-SELECT name,
-    address
-FROM Address
-WHERE address = '東京';
-SELECT name,
-    address,
-    age
-FROM Address
-WHERE address <> '大阪';
-SELECT name,
-    address,
-    age
-FROM Address
-WHERE address = '大阪'
-    AND age <= 30;
-SELECT name,
-    address
-FROM Address
-WHERE address IN ('東京', '石川');
-SELECT name,
-    phone_number
-FROM Address
-WHERE phone_number IS NULL;
-SELECT address,
-    count(*)
-FROM Address
-GROUP BY address;
--- 特定レコード修正
--- UPDATE Address SET address = '石川' WHERE name = '田中' OR name = '小林' OR name = '中村';
-UPDATE Address
-SET address = '東京'
-WHERE name = '加藤';
-SELECT *
-FROM Address;
--------------------------------------------  📅 3/4
+-- 基礎的なこと
+-- ＊OVER句・・・範囲を区切る。Window関数を宣言するための句
+-- ＊Window関数・・・複数行をまとめずに計算を行うことができる。 関数 OVER(パーティションなどを使う)
+--   ①ランキング（ROW_NUMBER）
+--   ②累計（SUM OVER）
+--   ③ 前の行（LAG）
 SELECT sex,
     COUNT(*)
 FROM Address
@@ -341,12 +261,211 @@ VALUES ('2024-06-01', 'Sat', 120),
     ('2024-06-18', 'Tue', 72),
     ('2024-06-19', 'Wed', 85),
     ('2024-06-20', 'Thu', 92);
-------------------------------------------------- 3/5（木）
+EXPLAIN
+SELECT prefecture,
+    SUM(
+        CASE
+            WHEN sex = 1 THEN pop
+            ELSE 0
+        END
+    ) AS pop_men,
+    SUM(
+        CASE
+            WHEN sex = 2 THEN pop
+            ELSE 0
+        END
+    ) AS pop_wom
+FROM Population
+GROUP BY prefecture;
+-- フルスキャンは１回で、各曜日の来客数の合計を算出する
+EXPLAIN
+SELECT SUM(
+        CASE
+            WHEN dow = 'Sun' THEN customers
+            else 0
+        END
+    ) AS Sun,
+    SUM(
+        CASE
+            WHEN dow = 'Mon' THEN customers
+            else 0
+        END
+    ) AS Mon,
+    SUM(
+        CASE
+            WHEN dow = 'Tue' THEN customers
+            else 0
+        END
+    ) AS Tue,
+    SUM(
+        CASE
+            WHEN dow = 'Wed' THEN customers
+            else 0
+        END
+    ) AS Wed,
+    SUM(
+        CASE
+            WHEN dow = 'Thu' THEN customers
+            else 0
+        END
+    ) AS Thu,
+    SUM(
+        CASE
+            WHEN dow = 'Fri' THEN customers
+            else 0
+        END
+    ) AS Fri,
+    SUM(
+        CASE
+            WHEN dow = 'Sat' THEN customers
+            else 0
+        END
+    ) AS Sat
+FROM CustomerCount;
+CREATE TABLE Sales3 (company VARCHAR(30), `year` INT, sale INT);
+INSERT INTO Sales3
+VALUES ('A', 2001, 1),
+    ('A', 2002, 2),
+    ('A', 2003, 3),
+    ('A', 2004, 4),
+    ('B', 2001, 3),
+    ('B', 2004, 2),
+    ('B', 2005, 1);
+SELECT company,
+    `year`,
+    MAX(sale) OVER(
+        PARTITION BY company
+        ORDER BY `year` ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
+    ) AS pre_compony
+FROM Sales3;
+CREATE TABLE Employees (
+    emp_id INT,
+    team_id INT,
+    emp_name VARCHAR(20),
+    team VARCHAR(10)
+);
+CREATE TABLE Employees2 (emp_id INT, emp_name VARCHAR(20), dept_id INT);
+INSERT INTO Employees2 (emp_id, emp_name, dept_id)
+VALUES (1, 'Tanaka', 10),
+    (2, 'Suzuki', 13),
+    (3, 'Sato', NULL),
+    (4, 'Yamada', 11),
+    (5, 'Kobayashi', NULL),
+    (6, 'Ito', 12),
+    (7, 'Watanabe', 13),
+    (8, 'Yoshida', NULL),
+    (9, 'Yamamoto', 11),
+    (10, 'Nakamura', 10);
+SELECT *
+FROM Employees2 E
+    INNER JOIN Departments D ON E.dept_id = D.dept_id;
+ALTER TABLE Employees
+ADD salary INT;
+ALTER TABLE Employees
+ADD sale INT;
+ALTER TABLE Employees
+ADD year INT;
+ALTER TABLE Employees
+ADD dept_id INT;
+SHOW TABLES;
+-- cross
+SELECT *
+FROM Employees
+    CROSS JOIN Departments;
+SELECT *
+FROM Employees,
+    Departments;
+INSERT INTO Employees VALUE (201, 1, 'Joe', '商品企画'),
+    (201, 2, 'Joe', '開発'),
+    (201, 3, 'Joe', '営業'),
+    (202, 2, 'Jim', '開発'),
+    (203, 3, 'Carl', '営業'),
+    (204, 1, 'Bree', '商品企画'),
+    (204, 2, 'Bree', '開発'),
+    (204, 3, 'Bree', '営業'),
+    (204, 4, 'Bree', '管理'),
+    (205, 1, 'kim', '商品企画'),
+    (205, 2, 'kim', '開発');
+CREATE TABLE Departments(dept_id INT, dept_name VARCHAR(30));
+INSERT INTO Departments
+VALUES (10, '総務'),
+    (11, '人事'),
+    (12, '開発'),
+    (13, '営業');
+-- innner join
+SELECT E.emp_id,
+    E.dept_id,
+    D.dept_id
+FROM Employees E
+    INNER JOIN Departments D ON E.dept_id = D.dept_id;
+SELECT E.emp_name,
+    E.emp_id,
+    E.dept_id,
+    (
+        SELECT D.dept_name
+        FROM Departments D
+        WHERE E.dept_id = D.dept_id
+    ) AS dept_name
+FROM Employees E;
+-- left join
+SELECT *
+FROM Departments D
+    LEFT OUTER JOIN Employees E ON D.dept_id = E.dept_id;
+-- right join
+SELECT *
+FROM Departments D
+    RIGHT OUTER JOIN Employees E ON D.dept_id = E.dept_id;
+-- テーブル全体の給与のマックス
+SELECT MAX(salary)
+FROM Employees;
+-- 会社員毎の給与のマックス
+SELECT emp_name,
+    MAX(sale) AS max_sale
+FROM Employees
+GROUP BY emp_name;
+SELECT emp_name,
+    `year`,
+    sale
+FROM (
+        SELECT emp_name,
+            `year`,
+            sale,
+            ROW_NUMBER() OVER(
+                PARTITION BY emp_name
+                ORDER BY sale DESC -- Overのスコープ内のみで並び替えを行い、その降順に１から順に数値を割り当てていく
+            ) as rm -- row number) 外側で使うため
+        FROM Employees
+    ) t --  table) サブクエリには一時的に名前をつける必要がある
+WHERE rm = 1;
+SELECT `year`,
+    sale,
+    MAX(sale) OVER(
+        ORDER BY `year` ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
+    ) AS pre_sale
+FROM Employees;
+SELECT emp_name,
+    sale,
+    ROW_NUMBER() OVER(
+        PARTITION BY emp_name
+        ORDER BY sale DESC
+    ) AS sale_rank
+FROM Employees;
+SELECT `year`,
+    avg_sale,
+    AVG(avg_sale) OVER(
+        ORDER BY `year` ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+    ) AS moving_avg
+FROM (
+        SELECT `year`,
+            AVG(sale) AS avg_sale
+        FROM Employees
+        GROUP BY `year`
+    ) t;
 -- 社員が兼任している結果セットを返す
 -- CASE式を使って結果セットを返す
 SELECT emp_name,
     CASE
-        WHEN COUNT(*) = 1 THEN MAX(team) -- group byを使っているため集約関数に包む必要がある
+        WHEN COUNT(*) = 1 THEN MIN(team) -- group byを使っているため集約関数に包む必要がある
         WHEN COUNT(*) = 2 THEN '２つ兼務'
         WHEN COUNT(*) >= 3 THEN '３つ以上を兼務'
         ELSE NULL
@@ -721,3 +840,113 @@ SELECT company,
         ELSE NULL
     END AS var
 FROM Sales;
+SELECT company,
+    `year`,
+    sale,
+    MAX(company) OVER (
+        PARTITION BY company
+        ORDER BY `year` ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
+    ) AS pre_compony,
+    MAX(sale) OVER (
+        PARTITION BY company
+        ORDER BY `year` ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
+    ) AS pre_sale
+FROM Sales;
+CREATE TABLE PostalCode(
+    pcode CHAR(7),
+    district_name VARCHAR(256),
+    CONSTRAINT pk_pcode PRIMARY KEY(pcode)
+);
+INSERT INTO PostalCode
+VALUES ('4130001', '静岡県熱海市泉'),
+    ('4130002', '静岡県熱海市伊豆山'),
+    ('4130003', '静岡県熱海市上多賀'),
+    ('4130004', '静岡県熱海市下多賀'),
+    ('4130005', '静岡県熱海市中央町'),
+    ('4100001', '静岡県熱海市和田浜南町'),
+    ('4380824', '赤池');
+SELECT pcode,
+    CASE
+        WHEN pcode = '4130033' THEN 0
+        WHEN pcode LIKE '413003%' THEN 1
+        WHEN pcode LIKE '41300%' THEN 2
+        WHEN pcode LIKE '4130%' THEN 3
+        WHEN pcode LIKE '413%' THEN 4
+        WHEN pcode LIKE '41%' THEN 5
+        WHEN pcode LIKE '4%' THEN 6
+        ELSE NULL
+    END AS `rank`
+FROM PostalCode;
+EXPLAIN
+SELECT pcode,
+    district_name
+FROM PostalCode
+WHERE CASE
+        WHEN pcode = '4130033' THEN 0
+        WHEN pcode LIKE '413003%' THEN 1
+        WHEN pcode LIKE '41300%' THEN 2
+        WHEN pcode LIKE '4130%' THEN 3
+        WHEN pcode LIKE '413%' THEN 4
+        WHEN pcode LIKE '41%' THEN 5
+        WHEN pcode LIKE '4%' THEN 6
+        ELSE NULL
+    END = (
+        SELECT MIN(
+                CASE
+                    WHEN pcode = '4130033' THEN 0
+                    WHEN pcode LIKE '413003%' THEN 1
+                    WHEN pcode LIKE '41300%' THEN 2
+                    WHEN pcode LIKE '4130%' THEN 3
+                    WHEN pcode LIKE '413%' THEN 4
+                    WHEN pcode LIKE '41%' THEN 5
+                    WHEN pcode LIKE '4%' THEN 6
+                    ELSE NULL
+                END
+            )
+        FROM PostalCode
+    );
+-- ウィンドウ関数を使って、スキャン回数を減らす
+-- 🟥理解不能。
+-- 🟥再復習必要
+EXPLAIN
+SELECT pcode,
+    district_name
+FROM (
+        SELECT pcode,
+            district_name,
+            CASE
+                WHEN pcode = '4130033' THEN 0
+                WHEN pcode LIKE '413003%' THEN 1
+                WHEN pcode LIKE '41300%' THEN 2
+                WHEN pcode LIKE '4130%' THEN 3
+                WHEN pcode LIKE '413%' THEN 4
+                WHEN pcode LIKE '41%' THEN 5
+                WHEN pcode LIKE '4%' THEN 6
+                ELSE NULL
+            END AS hit_code,
+            MIN(
+                CASE
+                    WHEN pcode = '4130033' THEN 0
+                    WHEN pcode LIKE '413003%' THEN 1
+                    WHEN pcode LIKE '41300%' THEN 2
+                    WHEN pcode LIKE '4130%' THEN 3
+                    WHEN pcode LIKE '413%' THEN 4
+                    WHEN pcode LIKE '41%' THEN 5
+                    WHEN pcode LIKE '4%' THEN 6
+                    ELSE NULL
+                END
+            ) OVER(
+                ORDER BY CASE
+                        WHEN pcode = '4130033' THEN 0
+                        WHEN pcode LIKE '413003%' THEN 1
+                        WHEN pcode LIKE '41300%' THEN 2
+                        WHEN pcode LIKE '4130%' THEN 3
+                        WHEN pcode LIKE '413%' THEN 4
+                        WHEN pcode LIKE '41%' THEN 5
+                        WHEN pcode LIKE '4%' THEN 6
+                        ELSE NULL
+                    END
+            ) AS min_code
+        FROM PostalCode
+    ) Foo
+WHERE hit_code = min_code;

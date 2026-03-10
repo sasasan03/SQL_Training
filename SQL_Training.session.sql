@@ -950,3 +950,175 @@ FROM (
         FROM PostalCode
     ) Foo
 WHERE hit_code = min_code;
+EXPLAIN
+SELECT cust_id,
+    SUM(
+        CASE
+            WHEN min_seq = 1 THEN price
+            ELSE 0
+        END
+    ) - SUM(
+        CASE
+            WHEN max_seq = 1 THEN price
+            ELSE 0
+        END
+    ) AS diff -- 最大・最小のpriceの差額（最大値 - 最小値）
+FROM (
+        SELECT cust_id,
+            price,
+            ROW_NUMBER() OVER (
+                PARTITION BY cust_id
+                ORDER BY seq
+            ) AS min_seq,
+            ROW_NUMBER() OVER (
+                PARTITION BY cust_id
+                ORDER BY seq DESC
+            ) AS max_seq
+        FROM Receipts
+    ) WORK
+WHERE WORK.min_seq = 1
+    OR WORK.max_seq = 1
+GROUP BY cust_id;
+CREATE TABLE Companies (co_cd CHAR(5), district VARCHAR(10));
+INSERT INTO Companies VALUE ("001", "A"),
+    ("002", "B"),
+    ("003", "C"),
+    ("004", "D");
+CREATE TABLE Shops (
+    co_cd CHAR(5),
+    shop_id INTEGER,
+    emp_nbr INTEGER,
+    main_flg VARCHAR(1)
+);
+INSERT INTO Shops VALUE ("001", 1, 300, "Y"),
+    ("001", 2, 400, "N"),
+    ("001", 3, 250, "Y"),
+    ("002", 1, 100, "Y"),
+    ("002", 2, 20, "N"),
+    ("003", 1, 400, "Y"),
+    ("003", 2, 500, "Y"),
+    ("003", 3, 300, "N"),
+    ("003", 4, 200, "Y"),
+    ("004", 1, 250, "Y");
+-- 結合を先にするパターン
+-- EXPLAIN
+SELECT co_cd,
+    MAX(C.district),
+    SUM(emp_nbr) AS sum_emp
+FROM Companies C
+    INNER JOIN Shops S ON S.co_cd = C.co_cd
+WHERE main_flg = 'Y'
+GROUP BY co_cd;
+-- 集約を先にするパターン
+-- EXPLAIN
+SELECT C.co_cd,
+    C.district,
+    sum_emp
+FROM Companies C
+    INNER JOIN(
+        SELECT co_cd,
+            SUM(emp_nbr) AS sum_emp
+        FROM Shops
+        WHERE main_flg = 'Y'
+        GROUP BY co_cd
+    ) CSUM ON C.co_cd = CSUM.co_cd;
+CREATE TABLE Weights (student_id CHAR(4), weight INTEGER);
+INSERT INTO Weights VALUE ("100", 50),
+    ("101", 55),
+    ("A124", 55),
+    ("B343", 60),
+    ("B346", 72),
+    ("C563", 72),
+    ("C345", 72);
+SELECT student_id,
+    ROW_NUMBER() OVER(
+        ORDER BY student_id ASC
+    ) as seq
+FROM Weights;
+CREATE TABLE Weights2 (
+    class INTEGER NOT NULL,
+    student_id CHAR(4) NOT NULL,
+    weight INTEGER NOT NULL,
+    seq INTEGER NULL,
+    PRIMARY KEY(class, student_id)
+);
+-- ①seqのカラムはなし
+-- ②seqのカラムあり
+INSERT INTO Weights2 VALUE (1, 100, 50, NULL),
+    (1, 101, 55, NULL),
+    (1, 102, 55, NULL),
+    (2, 100, 60, NULL),
+    (2, 101, 72, NULL),
+    (2, 102, 73, NULL),
+    (2, 103, 73, NULL);
+-- クラスごとに連番を振る
+SELECT `class`,
+    student_id,
+    ROW_NUMBER() OVER(
+        PARTITION BY `class`
+        ORDER BY student_id
+    ) as seq
+FROM Weights2;
+-- seqカラムが既存するテーブルだが、レコードはnull
+-- updataを使ってseqのレコードを上書きする
+UPDATE Weights2
+SET seq = (
+        SELECT seq
+        FROM (
+                SELECT `class`,
+                    student_id,
+                    ROW_NUMBER() OVER(
+                        PARTITION BY `class`
+                        ORDER BY student_id
+                    ) AS seq
+                FROM Weights2
+            ) SubTbl
+        WHERE Weights2.student_id = SubTbl.student_id
+            AND Weights2.`class` = SubTbl.`class`
+    );
+INSERT INTO Weights2 VALUE (2, 104, 90, 5);
+-- 可読性とパフォーマンスが低い
+EXPLAIN
+SELECT AVG(weight)
+FROM (
+        SELECT W1.weight
+        FROM Weights2 W1,
+            Weights2 W2
+        GROUP BY W1.weight
+        HAVING SUM(
+                CASE
+                    WHEN W2.weight >= W1.weight THEN 1
+                    ELSE 0
+                END
+            ) >= COUNT(*) / 2
+            AND SUM(
+                CASE
+                    WHEN W2.weight <= W1.weight THEN 1
+                    ELSE 0
+                END
+            ) >= COUNT(*) / 2
+    ) TMP;
+SELECT AVG(weight) AS median
+FROM (
+        SELECT weight,
+            ROW_NUMBER() OVER(
+                ORDER BY weight ASC,
+                    student_id ASC
+            ) AS hi,
+            ROW_NUMBER() OVER(
+                ORDER BY weight DESC,
+                    student_id DESC
+            ) AS lo
+        FROM Weights2
+    ) TMP
+WHERE hi IN(lo, lo + 1, lo -1);
+SELECT AVG(weight)
+FROM (
+        SELECT weight,
+            2 * ROW_NUMBER() OVER(
+                ORDER BY weight
+            ) - COUNT(*) OVER() AS diff
+        FROM Weights2
+    ) TMP
+WHERE diff BETWEEN 0 AND 2;
+SELECT VERSION();
